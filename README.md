@@ -1,31 +1,49 @@
 # Chisinau Queue Bot
 
-Telegram bot for monitoring Passport Service e-queue slots in Chisinau.
+Telegram bot for monitoring the Chisinau Passport Service e-queue page.
+
+This build has the anti-403 request profile hardcoded in `src/config.ts`:
+
+- `WARMUP_REQUEST=true`
+- Chrome-like `USER_AGENT`
+- Ukrainian/Russian/English `ACCEPT_LANGUAGE`
+
+You do **not** need to add `WARMUP_REQUEST`, `USER_AGENT`, or `ACCEPT_LANGUAGE` in Railway Variables.
 
 ## Railway variables
 
+Required:
+
 ```env
-TELEGRAM_BOT_TOKEN=...
-CHECK_INTERVAL_MINUTES=2
-ALERT_COOLDOWN_MINUTES=30
-STARTUP_NOTIFY=true
-TELEGRAM_POLLING_INTERVAL_SECONDS=5
-SUBSCRIBERS_FILE=/data/subscribers.json
+TELEGRAM_BOT_TOKEN=123456:ABC...
 ```
 
-`TELEGRAM_CHAT_ID` is optional. Normally users subscribe with `/start`.
+Recommended:
+
+```env
+CHECK_URL=https://chisinau.pasport.org.ua/solutions/e-queue
+CHECK_INTERVAL_MINUTES=2
+ALERT_COOLDOWN_MINUTES=30
+TELEGRAM_POLLING_INTERVAL_SECONDS=5
+SUBSCRIBERS_FILE=/data/subscribers.json
+STARTUP_NOTIFY=false
+```
+
+Optional first subscriber seed:
+
+```env
+TELEGRAM_CHAT_ID=743752486
+```
+
+Usually you do not need `TELEGRAM_CHAT_ID`, because users subscribe with `/start`.
 
 ## Commands
 
-- `/start` — subscribe and show buttons
+- `/start` — subscribe
 - `/stop` — unsubscribe
-- `/status` — check current status now
+- `/status` — check current status immediately
 
-## Railway
+The bot also shows buttons after `/start`:
 
-Deploy as a normal Node service. `railway.json` explicitly runs:
-
-- build: `npm run build`
-- start: `npm run start`
-
-This version intentionally has no runtime dependencies and no `package-lock.json` to avoid lockfiles containing private registry URLs.
+- `🔎 Проверить статус сейчас`
+- `🌐 Открыть страницу записи`

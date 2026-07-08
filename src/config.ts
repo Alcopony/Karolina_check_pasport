@@ -44,9 +44,11 @@ export const config = {
   telegramPollingIntervalSeconds: optionalNumberEnv('TELEGRAM_POLLING_INTERVAL_SECONDS', 5, 1),
   subscribersFile: process.env.SUBSCRIBERS_FILE?.trim() || './data/subscribers.json',
   logHtmlSnippetOnUnknown: optionalBooleanEnv('LOG_HTML_SNIPPET_ON_UNKNOWN', false),
+  // Hardcoded anti-403 request profile. Do not set these in Railway Variables.
+  warmupRequest: true,
+  acceptLanguage: 'uk-UA,uk;q=0.9,ru-RU;q=0.8,ru;q=0.7,en-US;q=0.6,en;q=0.5',
   userAgent:
-    process.env.USER_AGENT?.trim() ||
-    'Mozilla/5.0 (compatible; ChisinauQueueMonitor/1.0; +https://railway.app)',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
 };
 
 export type AppConfig = typeof config;
