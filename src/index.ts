@@ -1,20 +1,27 @@
 import { config } from './config.js';
 import { checkQueue } from './checker.js';
 import { logResult } from './logger.js';
+import { SubscriberStore } from './subscribers.js';
 import {
+  broadcastTelegramMessage,
   formatPossibleSlotsMessage,
   formatStartupMessage,
   formatUnknownMessage,
-  sendTelegramMessage,
+  pollTelegramCommands,
+  seedInitialSubscriber,
 } from './telegram.js';
 import type { QueueStatus } from './types.js';
+
+const store = new SubscriberStore(config.subscribersFile);
 
 let previousStatus: QueueStatus | undefined;
 let lastAlertAt = 0;
 let isCheckRunning = false;
+let isTelegramPollRunning = false;
 let stopped = false;
 
 const intervalMs = Math.round(config.checkIntervalMinutes * 60_000);
+const telegramPollingMs = Math.round(config.telegramPollingIntervalSeconds * 1_000);
 const cooldownMs = Math.round(config.alertCooldownMinutes * 60_000);
 const runOnce = process.argv.includes('--once');
 
@@ -23,9 +30,9 @@ function canSendAlert(): boolean {
   return Date.now() - lastAlertAt >= cooldownMs;
 }
 
-async function safeSend(text: string): Promise<void> {
+async function safeBroadcast(text: string): Promise<void> {
   try {
-    await sendTelegramMessage(config, text);
+    await broadcastTelegramMessage(config, store.getAll(), text);
     lastAlertAt = Date.now();
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -49,11 +56,11 @@ async function runCheck(): Promise<void> {
     const shouldNotifyPossibleSlots = changedToPossibleSlots || (result.status === 'POSSIBLE_SLOTS' && canSendAlert());
 
     if (shouldNotifyPossibleSlots && canSendAlert()) {
-      await safeSend(formatPossibleSlotsMessage(result));
+      await safeBroadcast(formatPossibleSlotsMessage(result));
     }
 
     if (config.notifyOnUnknown && result.status === 'UNKNOWN' && previousStatus !== 'UNKNOWN' && canSendAlert()) {
-      await safeSend(formatUnknownMessage(result));
+      await safeBroadcast(formatUnknownMessage(result));
     }
 
     previousStatus = result.status;
@@ -62,22 +69,52 @@ async function runCheck(): Promise<void> {
   }
 }
 
-function scheduleNextTick(): void {
+async function runTelegramPoll(): Promise<void> {
+  if (isTelegramPollRunning) return;
+
+  isTelegramPollRunning = true;
+  try {
+    await pollTelegramCommands(config, store, () => checkQueue(config));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`[telegram] polling failed: ${message}`);
+  } finally {
+    isTelegramPollRunning = false;
+  }
+}
+
+function scheduleNextCheckTick(): void {
   if (stopped) return;
 
   setTimeout(async () => {
     await runCheck();
-    scheduleNextTick();
+    scheduleNextCheckTick();
   }, intervalMs);
 }
 
+function scheduleNextTelegramPollTick(): void {
+  if (stopped) return;
+
+  setTimeout(async () => {
+    await runTelegramPoll();
+    scheduleNextTelegramPollTick();
+  }, telegramPollingMs);
+}
+
 async function main(): Promise<void> {
+  await store.load();
+  await seedInitialSubscriber(config, store);
+
   console.log(`Starting Chisinau queue monitor`);
   console.log(`URL: ${config.checkUrl}`);
   console.log(`Interval: ${config.checkIntervalMinutes} minutes`);
+  console.log(`Subscribers file: ${config.subscribersFile}`);
+  console.log(`Subscribers: ${store.count()}`);
+
+  await runTelegramPoll();
 
   if (config.startupNotify) {
-    await safeSend(formatStartupMessage(config));
+    await safeBroadcast(formatStartupMessage(config, store.count()));
   }
 
   await runCheck();
@@ -87,7 +124,8 @@ async function main(): Promise<void> {
     return;
   }
 
-  scheduleNextTick();
+  scheduleNextCheckTick();
+  scheduleNextTelegramPollTick();
 }
 
 function shutdown(signal: string): void {

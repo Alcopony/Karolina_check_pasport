@@ -38,13 +38,15 @@ function optionalBooleanEnv(name: string, defaultValue: boolean): boolean {
 
 export const config = {
   telegramBotToken: requiredEnv('TELEGRAM_BOT_TOKEN'),
-  telegramChatId: requiredEnv('TELEGRAM_CHAT_ID'),
+  initialTelegramChatId: process.env.TELEGRAM_CHAT_ID?.trim() || '',
   checkUrl: process.env.CHECK_URL?.trim() || 'https://chisinau.pasport.org.ua/solutions/e-queue',
   checkIntervalMinutes: optionalNumberEnv('CHECK_INTERVAL_MINUTES', 2, 0.1),
   alertCooldownMinutes: optionalNumberEnv('ALERT_COOLDOWN_MINUTES', 30, 0),
   checkTimeoutMs: optionalNumberEnv('CHECK_TIMEOUT_MS', 20_000, 1_000),
   startupNotify: optionalBooleanEnv('STARTUP_NOTIFY', false),
   notifyOnUnknown: optionalBooleanEnv('NOTIFY_ON_UNKNOWN', false),
+  telegramPollingIntervalSeconds: optionalNumberEnv('TELEGRAM_POLLING_INTERVAL_SECONDS', 5, 1),
+  subscribersFile: process.env.SUBSCRIBERS_FILE?.trim() || './data/subscribers.json',
   logHtmlSnippetOnUnknown: optionalBooleanEnv('LOG_HTML_SNIPPET_ON_UNKNOWN', false),
   userAgent:
     process.env.USER_AGENT?.trim() ||
