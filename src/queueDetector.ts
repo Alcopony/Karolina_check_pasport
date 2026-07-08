@@ -1,4 +1,3 @@
-import * as cheerio from 'cheerio';
 import type { QueueCheckResult, QueueStatus } from './types.js';
 
 const NEGATIVE_PHRASES = [
@@ -54,13 +53,30 @@ function decideStatus(negativeMatches: string[], positiveMatches: string[]): Que
   return 'UNKNOWN';
 }
 
+function stripHtmlToText(html: string): string {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<noscript[\s\S]*?<\/noscript>/gi, ' ')
+    .replace(/<svg[\s\S]*?<\/svg>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>');
+}
+
+function extractTitle(html: string): string | undefined {
+  const match = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+  if (!match) return undefined;
+  return normalizeText(stripHtmlToText(match[1]));
+}
+
 export function detectQueueStatus(html: string, url: string, httpStatus?: number): QueueCheckResult {
-  const $ = cheerio.load(html);
-
-  $('script, style, noscript, svg').remove();
-
-  const title = normalizeText($('title').first().text());
-  const visibleText = normalizeText($.root().text());
+  const title = extractTitle(html);
+  const visibleText = normalizeText(stripHtmlToText(html));
   const negativeMatches = findPhrases(visibleText, NEGATIVE_PHRASES);
   const positiveMatches = findPhrases(visibleText, POSITIVE_PHRASES);
 
@@ -71,7 +87,7 @@ export function detectQueueStatus(html: string, url: string, httpStatus?: number
     httpStatus,
     matchedNegativePhrases: negativeMatches,
     matchedPositivePhrases: positiveMatches,
-    title: title || undefined,
+    title,
     textSnippet: getTextSnippet(visibleText),
   };
 }
